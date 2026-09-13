@@ -1,221 +1,384 @@
 SILAR-LITE
 Arduino-Controlled Sequential Liquid Dipping System
 
-SILAR-LITE is a low-cost, Arduino-controlled automated rotary dipping machine designed to sequentially dip a probe, hand, or sample into four liquid-filled beakers.
+SILAR-LITE is a low-cost automated liquid dipping system built using an Arduino Uno R3 SMD, two NEMA 17 stepper motors, and A4988 stepper motor drivers.
 
-The system uses two NEMA 17 stepper motors: one for rotating the beaker platform and another for vertically moving the dipping arm.
+The machine is designed to automatically move a dipping arm into four liquid-filled beakers in sequence. A rotating platform positions each beaker below the dipping arm, while a belt-driven vertical mechanism moves the arm into and out of the liquid.
+
+This project was developed as an Embedded Systems / Mechatronics project with a focus on low-cost, simple, and reproducible automation.
 
 Project Overview
 
-The machine consists of two main motion systems:
+The system consists of two main mechanical subsystems:
 
-Rotating platform — indexes four beakers at 90° intervals.
-Vertical dipping arm — moves the probe into and out of the liquid using a GT2 belt mechanism.
+Rotating Platform
 
-Both motors are controlled by an Arduino Uno R3 SMD through A4988 stepper motor drivers.
+A circular platform holds four beakers positioned at 90-degree intervals.
+
+A NEMA 17 stepper motor rotates the platform to bring each beaker under the dipping arm.
+
+Vertical Dipping Mechanism
+
+A second NEMA 17 stepper motor drives a GT2 timing belt mechanism.
+
+The belt moves a carriage containing the dipping arm vertically along an 8 mm guide rod using an LM8UU linear bearing.
+
+System Architecture
+                    ┌─────────────────────┐
+                    │    Arduino Uno      │
+                    │       R3 SMD        │
+                    └──────────┬──────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │                             │
+             STEP/DIR                      STEP/DIR
+                │                             │
+        ┌───────▼───────┐             ┌──────▼───────┐
+        │    A4988 #1    │             │   A4988 #2   │
+        └───────┬────────┘             └──────┬───────┘
+                │                             │
+        ┌───────▼───────┐             ┌──────▼───────┐
+        │   NEMA 17 #1  │             │  NEMA 17 #2  │
+        │ Base Rotation │             │ Vertical Arm │
+        └───────────────┘             └──────────────┘
+
+Operating Sequence
+
+For each of the four beakers, the system performs the following sequence:
+
+        Start
+          │
+          ▼
+   Move arm DOWN
+      300 steps
+          │
+          ▼
+   Wait 30 seconds
+          │
+          ▼
+    Move arm UP
+      300 steps
+          │
+          ▼
+     Wait 5 seconds
+          │
+          ▼
+ Rotate base 200 steps
+          │
+          ▼
+    Next beaker
+
+
+The sequence is repeated for all four beakers.
+
+The complete four-beaker sequence is repeated 100 times, after which the program stops.
 
 Hardware
-Component	Quantity
-Arduino Uno R3 SMD	1
-NEMA 17 Stepper Motor	2
-A4988 Stepper Driver	2
-GT2 20T Pulley	2
-GT2 Timing Belt	1
-LM8UU Linear Bearing	1
-8 mm Smooth Rod	1
-Rigid Shaft Coupler	1
-12 V 5 A Power Supply	1
-Rotating Platform	1
-Beakers	4
+Component	Specification	Quantity
+Arduino Uno R3 SMD	ATmega328P, 16 MHz	1
+NEMA 17 Stepper Motor	17HS4401, 40 N·cm, 1.5 A	2
+A4988 Stepper Driver	Up to 2 A peak	2
+GT2 Pulley	20 tooth	2
+GT2 Timing Belt	6 mm width	1
+LM8UU Linear Bearing	8 mm bore	1
+Smooth Rod	8 mm steel	1
+Shaft Coupler	5 mm rigid coupler	1
+Power Supply	12 V, 5 A	1
+Rotating Platform	300 mm diameter	1
+Beakers	250 mL	4
 Arduino Pin Configuration
-Arduino Pin	Function
-D2	Enable — both A4988 drivers
-D3	Base motor STEP
-D4	Base motor DIR
-D5	Vertical arm motor STEP
-D6	Vertical arm motor DIR
+Arduino Pin	Connected To	Function
+D2	A4988 #1 and #2 EN	Enable both motors
+D3	A4988 #1 STEP	Base motor step
+D4	A4988 #1 DIR	Base motor direction
+D5	A4988 #2 STEP	Vertical motor step
+D6	A4988 #2 DIR	Vertical motor direction
+Power
+12 V Power Supply
+       │
+       ├── A4988 #1 VMOT
+       │
+       ├── A4988 #2 VMOT
+       │
+       └── Arduino Power Input
+
+
+The Arduino provides the logic-level control signals to the A4988 drivers.
+
 Software
 
 The firmware is written in C++ using the Arduino IDE.
 
-The project uses the AccelStepper library for controlling the two stepper motors with acceleration and deceleration.
+The project uses the AccelStepper library for controlling both stepper motors.
 
 Library documentation:
 
-{"fallbackMarkdown":"AccelStepper Documentation
-","reference":{"matched_text":"","prefix":null,"start_idx":3339,"end_idx":3425,"safe_urls":[],"refs":[],"alt":"AccelStepper Documentation
-","prompt_text":"AccelStepper Documentation
-","type":"url","title":"AccelStepper Documentation","item":{"title":"AccelStepper Documentation","url":"https://www.airspayce.com/mikem/arduino/AccelStepper/?utm_source=chatgpt.com","attribution":"airspayce.com","pub_date":null,"snippet":null,"attribution_segments":null,"supporting_websites":null,"refs":[],"hue":null,"attributions":null},"layout":null,"logo":null},"showLoginRequiredCard":false}
+https://www.airspayce.com/mikem/arduino/AccelStepper/
+
+Arduino documentation:
+
+https://docs.arduino.cc/
+
+Firmware
+
+The main firmware file is:
+
+silar_lite.ino
+
+
+The program creates two AccelStepper motor objects:
+
+AccelStepper base(AccelStepper::DRIVER, M1_STEP, M1_DIR);
+AccelStepper arm(AccelStepper::DRIVER, M2_STEP, M2_DIR);
+
+
+The base motor controls the rotary platform, while the arm motor controls the vertical dipping mechanism.
 
 Current Motion Parameters
 
-The current firmware is configured with:
+The current firmware uses the following parameters:
 
 Parameter	Value
 Base maximum speed	400 steps/s
 Base acceleration	150 steps/s²
 Arm maximum speed	300 steps/s
 Arm acceleration	200 steps/s²
-Downward movement	300 steps
-Upward movement	300 steps
+Arm downward movement	-300 steps
+Arm upward movement	+300 steps
 Dipping time	30 seconds
 Post-lift delay	5 seconds
 Base rotation	200 steps
 Beaker positions	4
-Complete cycles	100
-Operating Sequence
+Number of complete sequences	100
 
-For each of the four beakers, the Arduino performs:
+These values can be modified directly in the Arduino source code.
 
-Move arm down 300 steps
-        ↓
-Wait 30 seconds
-        ↓
-Move arm up 300 steps
-        ↓
-Wait 5 seconds
-        ↓
-Rotate platform 200 steps
-        ↓
-Move to next beaker
+Calibration
+Rotary Platform
+
+The base motor uses 200 steps for each 90-degree movement.
+
+With 1/4 microstepping and a 200-step NEMA 17 motor:
+
+200 full steps × 4 = 800 microsteps/revolution
+
+800 / 4 = 200 microsteps per 90°
 
 
-This sequence is repeated for four beaker positions.
+Therefore:
 
-The complete four-beaker sequence is then repeated 100 times.
+200 steps = 90°
+800 steps = 360°
 
-After 100 cycles, the Arduino stops execution.
+Vertical Movement
 
-Stepper Motor Configuration
+The dipping arm uses 300 steps for the downward movement and 300 steps for the return movement.
 
-The project uses two A4988 stepper motor drivers.
-
-The drivers are configured externally for the required microstepping mode.
-
-The firmware itself generates the STEP and DIR signals through the AccelStepper library.
-
-Project Structure
-SILAR-LITE/
-├── README.md
-└── silar_lite.ino
+The actual physical travel should be calibrated on the assembled machine because mechanical tolerances, belt tension, pulley alignment, and motor configuration can affect the movement.
 
 Installation
 1. Install Arduino IDE
 
-Download and install the Arduino IDE from the official Arduino website:
+Download the Arduino IDE from:
 
-{"fallbackMarkdown":"Arduino IDE / Documentation
-","reference":{"matched_text":"","prefix":null,"start_idx":4766,"end_idx":4824,"safe_urls":[],"refs":[],"alt":"Arduino IDE / Documentation
-","prompt_text":"Arduino IDE / Documentation
-","type":"url","title":"Arduino IDE / Documentation","item":{"title":"Arduino IDE / Documentation","url":"https://docs.arduino.cc/?utm_source=chatgpt.com","attribution":"docs.arduino.cc","pub_date":null,"snippet":null,"attribution_segments":null,"supporting_websites":null,"refs":[],"hue":null,"attributions":null},"layout":null,"logo":null},"showLoginRequiredCard":false}
+https://www.arduino.cc/en/software/
 
 2. Install AccelStepper
 
-In Arduino IDE:
+Open Arduino IDE and go to:
 
 Sketch
-→ Include Library
-→ Manage Libraries
-→ Search "AccelStepper"
-→ Install
+    ↓
+Include Library
+    ↓
+Manage Libraries
 
-3. Open the firmware
+
+Search for:
+
+AccelStepper
+
+
+Install AccelStepper by Mike McCauley.
+
+3. Open the project
 
 Open:
 
 silar_lite.ino
 
-
-in Arduino IDE.
-
 4. Select the board
 
-Select:
+In Arduino IDE select:
 
-Arduino Uno
+Tools → Board → Arduino AVR Boards → Arduino Uno
 
+5. Select the COM port
 
-from:
-
-Tools → Board
-
-
-Select the appropriate COM port from:
+Go to:
 
 Tools → Port
 
-5. Upload
+
+and select the COM port corresponding to your Arduino Uno.
+
+6. Upload
 
 Click the Upload button in Arduino IDE.
 
-Safety
+Repository Structure
+silar-lite-arduino-dipping-system/
+│
+├── README.md
+│
+└── silar_lite.ino
 
-This project controls stepper motors and uses a 12 V power supply.
 
-Before powering the machine:
+Additional folders can be added later for mechanical drawings, wiring diagrams, photographs, and videos.
 
-Check motor-driver wiring carefully.
-Verify the motor current limit on the A4988 drivers.
-Ensure all grounds are connected correctly.
-Keep hands and loose objects away from moving mechanisms.
-Do not operate the machine unattended.
-Make sure the dipping material and liquids are compatible with the mechanical components.
+For example:
+
+silar-lite-arduino-dipping-system/
+│
+├── README.md
+├── silar_lite.ino
+│
+├── images/
+│   ├── machine-front.jpg
+│   ├── machine-side.jpg
+│   └── wiring.jpg
+│
+└── docs/
+    ├── mechanical/
+    └── electrical/
+
+Bill of Materials
+
+Approximate prototype cost:
+
+₹2,904 INR
+
+Item	Quantity	Unit Cost (INR)	Total (INR)
+NEMA 17 Stepper Motor	2	650	1,300
+A4988 Motor Driver	2	100	200
+A4988 Controller Board	2	70	140
+Arduino Uno R3 SMD	1	253	253
+GT2 Belt	1	90	90
+GT2 Pulley 20T	2	90	180
+LM8UU Linear Bearing	1	44	44
+L Bracket	1	100	100
+Circular MDF/Plywood Platform	1	179	179
+8 mm Smooth Rod	1	163	163
+Rigid Shaft Coupler	1	55	55
+Screws, bolts and wires	—	—	200
+Total			₹2,904
+Results
+
+The prototype was tested for sequential operation of the four-beaker system.
+
+Observed results included:
+
+Consistent 90-degree platform rotation.
+Repeatable vertical arm movement after calibration.
+Reliable sequential dipping.
+GT2 belt remained tensioned during operation.
+A4988 drivers became warm during extended operation.
+Motor noise was present but acceptable for the intended application.
+No driver failures were observed during testing.
 Limitations
 
-The current version is an open-loop system and does not have position feedback.
+The current version has several limitations:
 
-Current limitations include:
-
-No homing or position sensor.
+No position feedback.
+Open-loop stepper motor control.
 Motor step loss can cause position errors.
 No liquid-level sensing.
 Fixed dipping depth.
 Parameters must be changed in the source code.
 Power interruption requires restarting the program.
-The dipping arm requires improved mechanical stability.
-No LCD or user interface.
+Dipping arm stability can be improved.
+No display or user interface.
+No automatic homing mechanism.
 Future Improvements
 
-Possible improvements include:
+Planned or possible improvements include:
 
-Position/homing sensors
-Closed-loop position verification
-16×2 LCD display
-EEPROM-based state storage
-Liquid-level sensing
-Beaker-presence detection
-Start/stop controls
-Runtime parameter adjustment
-Improved dipping-arm stability
-Support for more than four beakers
-Project Cost
-
-Approximate prototype component cost:
-
-₹2,904 INR
-
-The actual cost may vary depending on supplier, location, and component availability.
-
+Add homing and position sensors.
+Implement closed-loop position verification.
+Add a 16×2 LCD display.
+Add EEPROM for saving system state.
+Add liquid-level sensing.
+Add beaker-presence detection.
+Add start/stop controls.
+Allow runtime adjustment of dipping parameters.
+Improve mechanical stability of the dipping arm.
+Support more than four beaker positions.
 Applications
 
-SILAR-LITE can be adapted for:
+SILAR-LITE can be adapted for applications such as:
 
 Laboratory sample dipping
 Chemical coating experiments
 Staining procedures
 Surface treatment experiments
-Educational mechatronics
-Embedded systems projects
-Small-scale automation
+Educational mechatronics projects
+Embedded systems demonstrations
+Small-scale laboratory automation
 Sequential liquid processing
-Project Status
 
-Working Prototype
+The system should only be used with liquids and materials that are compatible with the machine's mechanical, electrical, and structural components.
 
-The current firmware successfully controls the rotating platform and vertical dipping mechanism through two stepper motors.
+Project Specifications
+Specification	Details
+Project Name	SILAR-LITE
+Project Type	Embedded Systems / Mechatronics
+Controller	Arduino Uno R3 SMD
+Motors	2 × NEMA 17
+Motor Drivers	2 × A4988
+Drive Mechanism	GT2 Belt
+Number of Beakers	4
+Platform Index	90°
+Power Supply	12 V, 5 A
+Firmware	Arduino C++
+Stepper Library	AccelStepper
+Estimated Cost	₹2,904
+Project Status	Working Prototype
+Safety
+
+This project involves moving mechanical components, stepper motors, motor drivers, and a 12 V power supply.
+
+Before operating the machine:
+
+Check all electrical connections.
+Verify the A4988 current-limit settings.
+Ensure the motor drivers have adequate cooling.
+Verify common ground connections.
+Keep hands and loose objects away from moving parts.
+Do not operate the machine unattended.
+Use appropriate containers and materials for the liquids being processed.
+References
+
+Arduino Documentation
+https://docs.arduino.cc/
+
+AccelStepper Library — Mike McCauley
+https://www.airspayce.com/mikem/arduino/AccelStepper/
+
+Allegro MicroSystems — A4988 Stepper Motor Driver Datasheet
+
+Trinamic Motion Control — NEMA 17 / 17HS4401 Stepper Motor Documentation
+
+Ossila — Introduction to Dip Coating
+https://www.ossila.com/pages/dip-coating
+
+Leica Biosystems — Autostainer XL Product Documentation
+
+Biolin Scientific / KSV NIMA — Dip Coater Technical Specifications
+
+Groover, M. P. — Fundamentals of Modern Manufacturing, 5th Edition, Wiley, 2015.
 
 License
 
-This project is intended as an open-source educational and experimental project.
+This project is intended primarily as an educational and experimental open-source project.
 
-You may add a specific open-source license to the repository depending on how you want others to use, modify, and distribute the project.
+A specific open-source license can be added to this repository if you plan to allow others to freely modify and redistribute the project.
